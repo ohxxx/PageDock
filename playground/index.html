@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- [INPUT]: User actions; [OUTPUT]: Notification tests, folded options, and event details; [POS]: Standalone test site; update playground/AGENTS.md. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>通知 · PageDock Playground</title>
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/" aria-label="PageDock Playground"><img src="/icon.png" width="32" height="32" alt=""><span>PageDock</span><span class="brand-note">Playground</span></a>
+    <nav aria-label="测试页面"><a href="/" aria-current="page">通知</a><a href="/media.html">设备</a></nav>
+  </header>
+  <main>
+    <div class="intro"><h1>通知测试</h1><p>从网页发送，回到桌面。</p></div>
+    <dl class="status-strip">
+      <div><dt>环境</dt><dd id="runtime">检测中</dd></div>
+      <div><dt>权限</dt><dd id="permission">检测中</dd></div>
+      <div><dt>Worker</dt><dd id="worker">准备中</dd></div>
+      <div><dt>页面</dt><dd id="visibility">检测中</dd></div>
+    </dl>
+    <div class="workspace">
+      <section aria-labelledby="compose-title">
+        <div class="section-heading"><h2 id="compose-title">新通知</h2><button id="permission-request" class="text-button">请求权限</button></div>
+        <label for="title">标题</label><input id="title" value="泊页 · 一条测试消息" maxlength="180">
+        <label for="body">内容</label><textarea id="body" rows="3">你好，点击通知返回泊页。</textarea>
+        <div class="actions send-actions"><button id="direct" class="primary">发送通知 <span aria-hidden="true">↗</span></button><button id="pwa">发送 PWA</button><button id="close" class="text-button">关闭通知</button></div>
+        <p class="hint">先在泊页设置中开启网站通知。</p>
+        <details class="options">
+          <summary>高级选项</summary>
+          <div class="fields"><div><label for="tag">替换标识</label><input id="tag" placeholder="留空则独立发送" aria-describedby="tag-help"></div><div><label for="room">会话标识</label><input id="room" value="conversation-01"></div></div>
+          <p class="hint" id="tag-help">相同标识会替换上一条通知。</p>
+          <div class="actions"><label class="check"><input id="silent" type="checkbox">静音</label><button id="replace">测试替换</button></div>
+          <div class="divider"></div>
+          <label for="delay">延迟（秒）</label><input id="delay" type="number" min="1" max="60" value="5">
+          <label class="check"><input id="background-only" type="checkbox">仅页面在后台时发送</label>
+          <div class="actions"><button id="schedule">延迟发送</button><button id="cancel" disabled>取消</button></div>
+          <p id="timer" class="hint" role="status">未安排</p>
+          <div class="divider"></div>
+          <div class="actions"><button id="list-pwa">查询 PWA</button><button id="close-pwa">关闭 PWA</button><button id="worker-send">Worker 发送</button></div>
+          <a id="foreign" class="inline-link">检查跨来源权限 <span aria-hidden="true">↗</span></a>
+          <p class="origin">来源 <code id="origin"></code></p>
+        </details>
+      </section>
+      <section class="observations" aria-labelledby="log-title">
+        <div class="section-heading"><h2 id="log-title">活动记录</h2><div class="actions"><button id="export" class="text-button">导出</button><button id="clear" class="text-button">清空</button></div></div>
+        <div class="feedback"><p id="feedback" role="status">准备中…</p><p class="hint">API 接收不代表横幅可见。</p></div>
+        <div class="receipt"><span class="hint">最近点击</span><p id="last-click">暂无回调</p><button id="seen">已看到系统横幅</button></div>
+        <ol id="events" aria-label="通知活动"></ol>
+        <p class="hint" id="report-status">记录仅保留在本机。</p>
+      </section>
+    </div>
+  </main>
+  <footer><span>PageDock · 泊页</span><span>本地测试环境</span></footer>
+</body>
+</html>

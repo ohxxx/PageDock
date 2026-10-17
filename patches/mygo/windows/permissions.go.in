@@ -1,0 +1,159 @@
+//go:build windows && (amd64 || arm64)
+
+// [INPUT]: Native WebView2 permission requests and four permission types persisted by older versions.
+// [OUTPUT]: Clear permission caches before first navigation and reauthorize every request through the app, preserving website data.
+// [POS]: Patch copied into the MyGo Windows backend; update patches/mygo/AGENTS.md.
+package windows
+
+import (
+	"errors"
+	"unsafe"
+)
+
+// WebView2 SDK 1.0.4191.47; these interfaces require Runtime 1.0.1661.34 or newer.
+var (
+	iidPermissionArgs3    = guid("e61670bc-3dce-4177-86d2-c629ae3cb6ac")
+	iidPermissionProfile4 = guid("8f4ae680-192e-4ec8-833a-21cfadaef628")
+)
+
+const (
+	permissionPutSavesInProfile = 12
+	profileSetPermission        = 15
+	profileGetPermissions       = 16
+	permissionListGetItem       = 3
+	permissionListGetCount      = 4
+	permissionSettingGetKind    = 3
+	permissionSettingGetOrigin  = 4
+	permissionDefault           = 0
+	permissionMicrophone        = 1
+	permissionNotifications     = 4
+)
+
+func transientPermission(args uintptr) error {
+	extended := queryInterface(args, &iidPermissionArgs3)
+	if extended == 0 {
+		return errors.New("mygo: permission control needs a newer WebView2 Runtime")
+	}
+	defer release(extended)
+	if hr := comCall(extended, permissionPutSavesInProfile, 0); failed(hr) {
+		return hresultError("disabling saved permissions", hr)
+	}
+	return nil
+}
+
+// Older versions may cache both denials and grants; revoke both before safely loading the page.
+func (w *window) becomeReady() {
+	if w.closed {
+		return
+	}
+	w.permissionCancel = clearSavedPermissions(w.webview, func(err error) {
+		w.permissionCancel = nil
+		if w.closed {
+			return
+		}
+		if err != nil {
+			w.webViewFailed(err)
+			return
+		}
+		w.finishReady()
+	})
+}
+
+func clearSavedPermissions(webview uintptr, done func(error)) (cancel func()) {
+	var p4 uintptr
+	finished := false
+	finish := func(err error) {
+		if finished {
+			return
+		}
+		finished = true
+		release(p4)
+		done(err)
+	}
+	cancel = func() { finish(errDestroyed) }
+	wv13 := queryInterface(webview, &iidICoreWebView2_13)
+	if wv13 == 0 {
+		finish(errors.New("mygo: permission control needs a newer WebView2 Runtime"))
+		return
+	}
+	var profile uintptr
+	hr := comCall(wv13, wv13GetProfile, uintptr(unsafe.Pointer(&profile)))
+	release(wv13)
+	if failed(hr) {
+		finish(hresultError("reading permission profile", hr))
+		return
+	}
+	p4 = queryInterface(profile, &iidPermissionProfile4)
+	release(profile)
+	if p4 == 0 {
+		finish(errors.New("mygo: permission control needs a newer WebView2 Runtime"))
+		return
+	}
+	hr = withHandler(func(result, list uintptr) {
+		if finished {
+			return
+		}
+		if failed(result) {
+			finish(hresultError("reading saved permissions", result))
+			return
+		}
+		var count uint32
+		if hr := comCall(list, permissionListGetCount, uintptr(unsafe.Pointer(&count))); failed(hr) {
+			finish(hresultError("counting saved permissions", hr))
+			return
+		}
+		type permission struct {
+			kind   int32
+			origin string
+		}
+		var saved []permission
+		for i := uint32(0); i < count; i++ {
+			var item uintptr
+			if hr := comCall(list, permissionListGetItem, uintptr(i), uintptr(unsafe.Pointer(&item))); failed(hr) {
+				finish(hresultError("reading saved permission", hr))
+				return
+			}
+			var kind int32
+			hr := comCall(item, permissionSettingGetKind, uintptr(unsafe.Pointer(&kind)))
+			var origin uintptr
+			if !failed(hr) && kind >= permissionMicrophone && kind <= permissionNotifications {
+				hr = comCall(item, permissionSettingGetOrigin, uintptr(unsafe.Pointer(&origin)))
+				if !failed(hr) {
+					saved = append(saved, permission{kind, takeWstr(origin)})
+				}
+			}
+			release(item)
+			if failed(hr) {
+				finish(hresultError("reading saved permission", hr))
+				return
+			}
+		}
+		var next func(uintptr, uintptr)
+		next = func(result, _ uintptr) {
+			if finished {
+				return
+			}
+			if failed(result) {
+				finish(hresultError("resetting saved permission", result))
+				return
+			}
+			if len(saved) == 0 {
+				finish(nil)
+				return
+			}
+			entry := saved[0]
+			saved = saved[1:]
+			hr := withHandler(next, func(h uintptr) uintptr {
+				return comCall(p4, profileSetPermission, uintptr(entry.kind), uintptr(unsafe.Pointer(u16(entry.origin))), permissionDefault, h)
+			})
+			if failed(hr) {
+				finish(hresultError("resetting saved permission", hr))
+			}
+		}
+		next(sOK, 0)
+	}, func(h uintptr) uintptr { return comCall(p4, profileGetPermissions, h) })
+	if failed(hr) {
+		finish(hresultError("reading saved permissions", hr))
+	}
+	return
+}

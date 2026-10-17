@@ -1,0 +1,19 @@
+# Native views
+
+| Path | Responsibility |
+|---|---|
+| `settings.go` | `Settings` draft, action entry, navigation, and save bar |
+| `sections.go` | Shared settings sections, platform capability, default/custom icon preview, and contextual hints |
+| `browser.go` | `Browser` embedded WebView, thin loading indicator, background sampling, and cancellation on close |
+| `menu.go` | Shared saved name/image state, main-thread callback binding, and image previews |
+| `theme.go` | Shared light/dark colors, dimensions, text scaling, and high-contrast tokens |
+| `windows/menu.go` | Actual Windows title bar button drawing, layout, mouse, and keyboard behavior |
+| `windows/about.go` | Native Windows About dialog and error propagation |
+
+The Windows subpackage uses portable MyGo/UI interfaces, retaining compilation/rendering tests on every host. Callers still select it through existing platform conditions. Native system API implementations require matching build tags; directory names do not filter Go files.
+
+Without a custom image, settings previews and the Windows title bar display the default logo from `internal/brand`. This fallback affects drawing only, preserving empty draft values, custom-image flags, and default-restoration transactions.
+
+`Settings`, `Browser`, and `Menu` state belongs to the UI main thread. Background operations receive drafts by value and return through `Window.Update`; menu callbacks dispatch a goroutine before taking the application lock. The Windows package receives display values/callbacks without owning app state/locks, saving config, or initiating file transactions.
+
+Settings remain native MyGo Content; only website views host WebViews. Shared control tests live in `tests/internal/view/`; Windows menu/caption tests live in its windows/ group and still run in view through package mapping. Portable menu tests run on every host; screen-pixel tests require Windows desktop. Run `make test-desktop` serially and update headers, maps, and test notes.

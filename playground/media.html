@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- [INPUT]: Local media test actions; [OUTPUT]: Timed capture and folded diagnostics; [POS]: Standalone test page; update playground/AGENTS.md. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>设备 · PageDock Playground</title>
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/media.js"></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/" aria-label="PageDock Playground"><img src="/icon.png" width="32" height="32" alt=""><span>PageDock</span><span class="brand-note">Playground</span></a>
+    <nav aria-label="测试页面"><a href="/">通知</a><a href="/media.html" aria-current="page">设备</a></nav>
+  </header>
+  <main>
+    <div class="intro"><h1>设备测试</h1><p>每次采集 3 秒，音视频不上传。</p></div>
+    <div class="workspace media-workspace">
+      <section aria-labelledby="capture-title">
+        <div class="section-heading"><h2 id="capture-title">开始采集</h2><button id="stop" class="text-button" disabled>停止</button></div>
+        <div class="device-actions">
+          <button id="microphone"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span>麦克风<small>录音与回放</small></span><span class="arrow" aria-hidden="true">↗</span></button>
+          <button id="camera"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="3"/><path d="m15 10 6-3v10l-6-3"/></svg><span>摄像头<small>画面预览</small></span><span class="arrow" aria-hidden="true">↗</span></button>
+          <button id="combined"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 6v12M12 3v18M16 6v12M20 10v4"/></svg><span>同时测试<small>相机与麦克风</small></span><span class="arrow" aria-hidden="true">↗</span></button>
+        </div>
+        <p class="hint">请先在泊页设置中允许相应设备。</p>
+        <video id="preview" muted playsinline autoplay aria-label="本地摄像头预览" hidden></video>
+        <audio id="recording" controls aria-label="本次录音回放" hidden></audio>
+        <details class="options"><summary>环境信息</summary><p id="environment" class="hint" role="status">检测中…</p><p class="origin">来源 <code id="origin"></code></p></details>
+      </section>
+      <section class="observations" aria-labelledby="log-title">
+        <div class="section-heading"><h2 id="log-title">活动记录</h2></div>
+        <div class="feedback"><p id="feedback" role="status">选择一项设备开始。</p></div>
+        <ol id="events" aria-label="设备活动"></ol>
+        <p id="report-status" class="hint">录音留在本页，刷新后清除。</p>
+      </section>
+    </div>
+  </main>
+  <footer><span>PageDock · 泊页</span><span>本地测试环境</span></footer>
+</body>
+</html>

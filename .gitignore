@@ -1,0 +1,7 @@
+/build/
+/.cache/
+/.mygo/
+/.scratch/
+/pagedock
+*.test
+.DS_Store

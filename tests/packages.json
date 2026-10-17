@@ -1,0 +1,8 @@
+{
+  "internal/macos": "internal",
+  "internal/windows": "internal",
+  "internal/other": "internal",
+  "internal/config/windows": "internal/config",
+  "internal/view/windows": "internal/view",
+  "patches/mygo/updater/windows": "patches/mygo/updater"
+}
