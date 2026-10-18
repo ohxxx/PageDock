@@ -1,6 +1,6 @@
 //go:build windows
 
-// [INPUT]: Real Windows EXEs, Shell links, and save failures in isolated directories.
+// [INPUT]: Real Windows EXEs, Shell links, and save failures in canonical isolated directories.
 // [OUTPUT]: Win32 icon loading, preserved link targets/icons/arguments, rollback, and running-image replacement tests.
 // [POS]: Windows-only execution without access to user shortcuts or installed applications.
 // [PROTOCOL]: Update internal/appearance/windows/AGENTS.md, tests/AGENTS.md, validation commands, and platform boundaries.
@@ -31,7 +31,7 @@ func TestWindowsIconAndShortcuts(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer iconCoUninitialize.Call()
-	dir := t.TempDir()
+	dir := windowsFixtureDir(t)
 	path := filepath.Join(dir, "泊页 程序.exe")
 	original := testWindowsEXE(t, runtime.GOARCH)
 	if err := os.WriteFile(path, original, 0o700); err != nil {
@@ -166,7 +166,7 @@ func TestWindowsRunningIconReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
+	dir := windowsFixtureDir(t)
 	path := filepath.Join(dir, "running.exe")
 	if err := os.WriteFile(path, original, 0o700); err != nil {
 		t.Fatal(err)

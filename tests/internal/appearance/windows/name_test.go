@@ -1,6 +1,6 @@
 //go:build windows
 
-// [INPUT]: Isolated EXEs, real Shell shortcuts, and unique test uninstall registry keys.
+// [INPUT]: EXEs at canonical isolated paths, real Shell shortcuts, and unique test uninstall registry keys.
 // [OUTPUT]: Native Shell names, version resources, installed-app names, preserved arguments, and complete rollback tests.
 // [POS]: Windows-only tests that preserve user shortcuts and real installation records.
 // [PROTOCOL]: Update internal/appearance/windows/AGENTS.md, tests/AGENTS.md, and cross-platform validation records.
@@ -28,7 +28,7 @@ func TestWindowsAppearanceNamesAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer iconCoUninitialize.Call()
-	dir := filepath.Join(t.TempDir(), "应用 程序")
+	dir := filepath.Join(windowsFixtureDir(t), "应用 程序")
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}

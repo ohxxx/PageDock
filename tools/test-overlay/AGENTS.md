@@ -4,4 +4,4 @@
 
 Reject missing product directories, linked test files, path escapes, existing product-side tests, and multiple sources mapped to one target. An empty test set fails. Write `.cache/tests/overlay.json` without copying product source or modifying the module cache.
 
-`tests/tools/test-overlay/main_test.go` creates temporary modules and actually runs Go tests to verify private access, platform groups, desktop constraints, failure propagation, and path/conflict rejection. Update tests/AGENTS.md, packages.json, and this map together.
+`tests/tools/test-overlay/main_test.go` creates temporary modules and actually runs Go tests to verify private access, platform groups, desktop constraints, failure propagation, and path/conflict rejection. Resolve fixture roots before launching Go so its working directory matches the overlay's canonical paths, including Windows 8.3 temporary directories. Update tests/AGENTS.md, packages.json, and this map together.

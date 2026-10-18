@@ -1,5 +1,5 @@
 # [INPUT]: Stable v<mygo.json version> tags, or manual runs for build artifacts only.
-# [OUTPUT]: Six native targets; complete packages and SHA256SUMS in a GitHub release.
+# [OUTPUT]: Six native targets; packages with stable asset names and SHA256SUMS in a GitHub release.
 # [POS]: Release orchestration; Makefile retains MyGo patch preparation.
 # [PROTOCOL]: Keep .github/AGENTS.md, Makefile, README.md, and tests/AGENTS.md synchronized.
 name: Release
@@ -89,6 +89,12 @@ jobs:
               windows/*) cp "$directory/"*" Setup "*.exe release/ ;;
               linux/*) cp "$directory/"*.deb "$directory/"*.tar.gz release/ ;;
             esac
+          done
+          for package in release/*; do
+            asset="${package// /-}"
+            if [[ "$package" != "$asset" ]]; then
+              mv -- "$package" "$asset"
+            fi
           done
       - uses: actions/upload-artifact@v7
         with:

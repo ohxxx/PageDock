@@ -1,4 +1,4 @@
-// [INPUT]: Temporary Go modules, private functions, and real tests under tests/.
+// [INPUT]: Temporary Go modules at canonical paths, private functions, and real tests under tests/.
 // [OUTPUT]: Test discovery, private access, failure propagation, and missing/conflicting input behavior.
 // [POS]: Execution tests for test assembly; avoid source matching or JSON-shape-only assertions.
 // [PROTOCOL]: Update tools/test-overlay/main.go and tests/AGENTS.md.
@@ -13,7 +13,10 @@ import (
 )
 
 func TestOverlayRunsPrivatePackageTests(t *testing.T) {
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	write := func(name, contents string) {
 		t.Helper()
 		path := filepath.Join(root, name)
@@ -65,7 +68,10 @@ func TestPrivate(t *testing.T) { if answer() != 42 { t.Fatal("private answer cha
 }
 
 func TestPlatformGroupsKeepPrivateAccessAndTags(t *testing.T) {
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	write := func(name, contents string) {
 		t.Helper()
 		path := filepath.Join(root, name)

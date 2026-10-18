@@ -1,6 +1,6 @@
 //go:build windows
 
-// [INPUT]: Isolated real Win32 windows, COM properties, and temporary Shell shortcuts.
+// [INPUT]: Isolated real Win32 windows, COM properties, and Shell shortcuts at canonical temporary paths.
 // [OUTPUT]: Taskbar name, relaunch command, stable identity, destruction cleanup, pinned-link migration, and rollback behavior.
 // [POS]: Native Windows tests without real user shortcuts; these do not replace Explorer visual validation.
 // [PROTOCOL]: Update internal/appearance/windows/AGENTS.md and tests/AGENTS.md, including Validation records.
@@ -97,7 +97,7 @@ func TestWindowsTaskbarShortcutMigrationAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer iconCoUninitialize.Call()
-	dir := filepath.Join(t.TempDir(), "应用 程序")
+	dir := filepath.Join(windowsFixtureDir(t), "应用 程序")
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}

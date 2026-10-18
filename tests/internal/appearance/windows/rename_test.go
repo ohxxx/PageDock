@@ -1,6 +1,6 @@
 //go:build windows
 
-// [INPUT]: Real Shell links in temporary directories, consecutive names, conflicting files, and save failures.
+// [INPUT]: Real Shell links in canonical temporary directories, consecutive names, conflicting files, and save failures.
 // [OUTPUT]: Taskbar renames, preserved arguments/targets, default restoration, and complete file/directory metadata rollback.
 // [POS]: Native Windows behavior tests that never modify real pinned items.
 // [PROTOCOL]: Update internal/appearance/windows/AGENTS.md, tests/AGENTS.md, and Windows validation records.
@@ -28,7 +28,7 @@ func TestWindowsTaskbarRenameAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer iconCoUninitialize.Call()
-	dir := t.TempDir()
+	dir := windowsFixtureDir(t)
 	exe := filepath.Join(dir, "app.exe")
 	if err := os.WriteFile(exe, testWindowsEXE(t, runtime.GOARCH), 0700); err != nil {
 		t.Fatal(err)

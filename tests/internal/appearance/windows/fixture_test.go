@@ -1,7 +1,7 @@
 //go:build windows
 
 // [INPUT]: The Go compiler and temporary directories.
-// [OUTPUT]: Unsigned dual-architecture EXE fixtures with original multilingual resources.
+// [OUTPUT]: Canonical temporary paths and unsigned dual-architecture EXE fixtures with original multilingual resources.
 // [POS]: Native Windows transaction test inputs that do not touch installed applications.
 // [PROTOCOL]: Update tests/internal/appearance/windows/AGENTS.md and shared PE fixtures.
 package windows
@@ -17,6 +17,16 @@ import (
 	"github.com/tc-hib/winres"
 	"github.com/tc-hib/winres/version"
 )
+
+func windowsFixtureDir(t *testing.T) string {
+	t.Helper()
+	// Match windowsIconExecutable before calling private transaction helpers; TEMP may use an 8.3 path.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
 
 func testWindowsEXE(t *testing.T, arch string) []byte {
 	t.Helper()
