@@ -74,7 +74,14 @@ go vet -modfile="$patch_mod" -overlay="$test_overlay" ./...
 
 Local NSIS is unavailable, so Windows installers were not generated; actual collection correctly rejected their absence. The workflow installs NSIS on its Windows packaging runner. GitHub-hosted execution, live release publication, Windows/Linux native execution, and device/notification acceptance were not performed in this pass. No commits, pushes, tags, or releases were created.
 
-2026-10-18 hosted follow-up: Test run 39091361861 and manual Release run 39091416810 passed macOS/Linux tests and reproduced six Windows failures. The runner's TEMP used RUNNER~1 while Shell returned runneradmin. Four private Shell transaction tests bypassed the public entry's canonicalization; two overlay tests launched Go from an unnormalized path. Fixtures now resolve paths before invoking those existing helpers. Package collection also replaces spaces with hyphens before upload so SHA256SUMS uses the exact public asset names. Local make check/test/test-playground, actionlint, shell syntax, eight normalized filename/checksum checks, and each missing-package rejection passed. Hosted reruns and publication are still pending at this checkpoint.
+2026-10-18 hosted follow-up: Test run 39091361861 and manual Release run 39091416810 passed macOS/Linux tests and reproduced six Windows failures. The runner's TEMP used RUNNER~1 while Shell returned runneradmin. Four private Shell transaction tests bypassed the public entry's canonicalization; two overlay tests launched Go from an unnormalized path. Fixtures now resolve paths before invoking those existing helpers. Package collection also replaces spaces with hyphens before upload so SHA256SUMS uses the exact public asset names.
+
+- Local make check/test/test-playground, actionlint, shell syntax, Windows amd64/arm64 test compilation, eight normalized filename/checksum checks, and each missing-package rejection passed.
+- [Test run 39091833802](https://github.com/ohxxx/PageDock/actions/runs/39091833802) passed all three hosted systems at 7e3bf6f. Windows still used RUNNER~1 and passed the native Shell and real overlay-discovery suites.
+- [Manual Release run 39091839363](https://github.com/ohxxx/PageDock/actions/runs/39091839363) passed validation, all three test jobs, and all six build targets at the same commit. Downloaded all eight packages: both DMGs passed hdiutil verification, both Windows packages were NSIS installers, and Linux archives retained executable permissions and Debian members. This manual run did not publish.
+- /ponytail-review traced the unchanged public path normalization, private helper callers, fixture assertions, package names, checksum generation, and draft publication sequence. No blocking issues remained. Evidence is in .scratch/github-release/.
+
+This hosted pass validates headless tests and packaging. It does not establish installer execution, GUI behavior, physical media, or notification delivery. Tag-triggered publication remains a separate workflow gate.
 
 ### Platform directory organization
 
