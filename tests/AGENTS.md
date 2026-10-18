@@ -54,7 +54,25 @@ go vet -modfile="$patch_mod" -overlay="$test_overlay" ./...
 - Preserve notification test-bundle registration/restoration and Windows media temporary-profile cleanup. Ordinary desktop tests do not automatically invoke physical devices or real-banner suites.
 - Separate cross-compilation from actual platform behavior. See Validation records below; raw logs stay in .scratch/. Update root/owning AGENTS.md files and source headers together.
 
+## GitHub Actions
+
+`.github/workflows/test.yml` executes make check, make test, and make test-playground on macOS, Windows, and Ubuntu 24.04. It downloads dependencies before preparing the MyGo patch and test overlay, and runs actionlint on Linux. Release builds reuse this workflow as a required gate. Hosted jobs do not execute desktop, real notification, or physical-media suites.
+
+`.github/workflows/release.yml` packages macOS DMGs, Windows NSIS installers, and Linux Debian/tar packages for amd64 and arm64. `make build BUILD_ARGS='-platform <targets> -o build'` enables DMGs while retaining dependency patches. Manual runs retain packages as Actions artifacts; only matching version-tag pushes publish. Validate version mismatch rejection, missing-package failure, and draft-only retry behavior by executing the workflow shell steps with isolated fixtures. Remote publishing must be verified separately from local syntax/build checks.
+
 ## Validation records
+
+### GitHub release automation
+
+2026-10-18: Added native CI and gated tag releases, using Mayoi's release flow while retaining PageDock's Makefile patches, centralized tests, and ad-hoc/unsigned packaging. Evidence and the /ponytail-review record are in .scratch/github-release/.
+
+- make check, make test with the race detector, and make test-playground passed on macOS ARM64. actionlint 1.7.12 and Bash syntax checks passed for both workflows.
+- Executed the workflow shell steps with isolated fixtures: valid versions/manual branches passed; tag mismatches and invalid stable versions failed. All eight expected package files were selected, source files were excluded, and each missing package failed collection. A simulated upload failure left a draft; retry uploaded before publishing; published versions were refused.
+- MyGo built all six macOS/Windows/Linux ARM64/amd64 targets through the updated Makefile. Both macOS bundles passed strict codesign checks and both DMGs passed hdiutil verification. Both Windows EXEs passed the existing packaged icon/name resource round-trip tests.
+- Both Linux tar archives retained executable permissions and matched the built binaries. Debian control metadata contained the correct version, architecture, and WebKit dependency. Actual macOS/Linux collection and SHA256SUMS generation/verification passed for all six distribution files.
+- /ponytail-review covered callers, permissions, versions, artifact selection, draft retry behavior, and documentation. No blocking issues were found.
+
+Local NSIS is unavailable, so Windows installers were not generated; actual collection correctly rejected their absence. The workflow installs NSIS on its Windows packaging runner. GitHub-hosted execution, live release publication, Windows/Linux native execution, and device/notification acceptance were not performed in this pass. No commits, pushes, tags, or releases were created.
 
 ### Platform directory organization
 

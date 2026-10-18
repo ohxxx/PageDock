@@ -1,0 +1,52 @@
+# [INPUT]: Pushes to main, pull requests, manual runs, and the release workflow.
+# [OUTPUT]: Native headless tests, static checks, and Playground behavior checks.
+# [POS]: GitHub Actions validation through the shared Makefile and test overlay.
+# [PROTOCOL]: Keep .github/AGENTS.md, Makefile, and tests/AGENTS.md synchronized.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-24.04]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Install Linux text and WebView libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-0 fonts-dejavu-core
+      - name: Install Make on Windows
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress -y
+      - name: Download dependencies before preparing MyGo patches
+        run: go mod download
+      - name: Check workflows
+        if: runner.os == 'Linux'
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+      - name: Check and test
+        run: make check test test-playground

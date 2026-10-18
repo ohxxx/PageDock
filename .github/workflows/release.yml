@@ -1,0 +1,132 @@
+# [INPUT]: Stable v<mygo.json version> tags, or manual runs for build artifacts only.
+# [OUTPUT]: Six native targets; complete packages and SHA256SUMS in a GitHub release.
+# [POS]: Release orchestration; Makefile retains MyGo patch preparation.
+# [PROTOCOL]: Keep .github/AGENTS.md, Makefile, README.md, and tests/AGENTS.md synchronized.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check the release version
+        shell: bash
+        run: |
+          version="$(jq -er '.version' mygo.json)"
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::mygo.json must contain a stable version such as 1.2.3"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match mygo.json version $version"
+            exit 1
+          fi
+
+  test:
+    needs: validate
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            platforms: darwin/arm64,darwin/amd64
+          - name: Windows
+            os: ubuntu-24.04
+            platforms: windows/amd64,windows/arm64
+          - name: Linux
+            os: ubuntu-24.04
+            platforms: linux/amd64,linux/arm64
+    defaults:
+      run:
+        shell: bash
+    env:
+      BUILD_PLATFORMS: ${{ matrix.platforms }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Install NSIS for Windows installers
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Download dependencies before preparing MyGo patches
+        run: go mod download
+      - name: Build packages
+        run: make build BUILD_ARGS="-platform $BUILD_PLATFORMS -o build"
+      - name: Collect every target's packages
+        run: |
+          mkdir -p release
+          IFS=',' read -r -a targets <<< "$BUILD_PLATFORMS"
+          for target in "${targets[@]}"; do
+            directory="build/${target/\//-}"
+            case "$target" in
+              darwin/*) cp "$directory/"*.dmg release/ ;;
+              windows/*) cp "$directory/"*" Setup "*.exe release/ ;;
+              linux/*) cp "$directory/"*.deb "$directory/"*.tar.gz release/ ;;
+            esac
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.name }}
+          path: release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: release
+        run: sha256sum -- * > SHA256SUMS
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if release="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft)"; then
+            if [[ "$(jq -r '.isDraft' <<< "$release")" != true ]]; then
+              echo "::error::Release $GITHUB_REF_NAME is already published; use a new version"
+              exit 1
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes \
+              --notes 'macOS builds are ad-hoc signed, without Apple notarization. Windows builds are unsigned. See the README for installation requirements.'
+          fi
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" release/* --clobber
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

@@ -1,4 +1,10 @@
+# [INPUT]: Pinned Go/MyGo dependencies, centralized tests, and optional BUILD_ARGS.
+# [OUTPUT]: Patched development, checks, tests, and native application packages.
+# [POS]: Shared local and GitHub Actions entry points.
+# [PROTOCOL]: Update AGENTS.md, .github/AGENTS.md, and tests/AGENTS.md with command changes.
 .PHONY: dev playground test test-playground test-desktop test-notifications test-media-windows build build-windows check
+
+BUILD_ARGS ?= -skip-dmg
 
 ifneq ($(filter dev test test-desktop test-notifications test-media-windows build build-windows check,$(or $(MAKECMDGOALS),dev)),)
 MYGO_MODFILE := $(shell go run ./tools/mygo-patch)
@@ -39,7 +45,7 @@ test-media-windows:
 	node tests/playground/windows/media.mjs
 
 build:
-	go tool mygo build -skip-dmg
+	go tool mygo build $(BUILD_ARGS)
 
 build-windows:
 	go tool mygo build -platform windows/amd64,windows/arm64 -o build -skip-dmg

@@ -42,6 +42,7 @@ A single-user, single-process desktop shell with no backend or database. Set a U
 | Directory `AGENTS.md` files / `tests/AGENTS.md` | Module maps, interface constraints, and platform validation scope |
 | `go.mod` / `go.sum` / `mygo.json` | Pinned dependencies and package metadata; the app entry remains root `.` |
 | `Makefile` / `README.md` | Development, test, check, and build commands; concise product and usage information |
+| `.github/` | Native CI checks and tag-triggered six-target GitHub releases; see its AGENTS.md |
 
 ## Global constraints
 
@@ -99,12 +100,15 @@ make test-media-windows # Windows device inputs and real permission/WebRTC tests
 make test-notifications # Real macOS banners; run make dev once for the Dev notification identity
 make check
 make build
+make build BUILD_ARGS='-platform darwin/arm64,darwin/amd64' # Include release DMGs on macOS
 make build-windows # Windows x64/ARM64 with caption-button patches
 make dev
 make playground # Local notification/media site on 127.0.0.1
 ```
 
 PAGEDOCK_DATA_DIR isolates config/window-state directories, not macOS WebKit or Windows WebView2 profiles. Windows file cleanup tests use temporary LOCALAPPDATA and file locks only. Record target execution separately from cross-compilation. State the actual scope for notification presentation, cookies across restarts, and platform Push capabilities; successful builds do not prove notification delivery.
+
+GitHub Actions runs headless checks on macOS, Windows, and Linux. Stable vMAJOR.MINOR.PATCH tags matching mygo.json run those checks before packaging both architectures of each platform and publishing a release with SHA256SUMS. Manual Release runs produce downloadable artifacts only. Builds use Makefile patch preparation, ad-hoc macOS signing, and unsigned Windows installers; see .github/AGENTS.md for permissions and retry behavior.
 
 ## Navigation for agents
 

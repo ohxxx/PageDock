@@ -17,7 +17,9 @@ Enter a URL, save, and open. PageDock restores your website, sign-in session, an
 
 ## Get started
 
-Requires Go 1.27.1. Start the development app:
+Download the package for your system and architecture from [GitHub Releases](https://github.com/ohxxx/PageDock/releases). macOS packages use ad-hoc signing without Apple notarization; Windows installers are unsigned, so system security checks may require explicit approval.
+
+To run from source, install Go 1.27.1 and start the development app:
 
 ```sh
 make dev
@@ -26,6 +28,12 @@ make dev
 On first launch, enter a website address and choose **Save and Apply**. HTTPS is the default; enable HTTP in settings for local or intranet sites.
 
 Build the app with `make build`, or both Windows architectures with `make build-windows`.
+
+## Releases
+
+Set `version` in `mygo.json`, commit the intended changes, then explicitly push a matching `vMAJOR.MINOR.PATCH` tag. GitHub Actions runs tests on all three systems, builds both architectures, and publishes the packages with `SHA256SUMS`. A manual **Release** workflow run builds downloadable artifacts without publishing.
+
+The workflow uses GitHub's built-in token and requires no additional secrets. See [GitHub automation](.github/AGENTS.md) for the release process.
 
 ## Platforms
 
