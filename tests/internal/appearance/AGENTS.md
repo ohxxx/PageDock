@@ -6,7 +6,7 @@ Overlay maps tests to the corresponding product package. Shared resource tests s
 |---|---|
 | `file_test.go` | Real file replacement, config-save rollback, and recovery-copy retention |
 | `pe_test.go` / `version_test.go` | Dual-architecture PE icons/names, unrelated resource preservation, and default restoration |
-| `image_test.go` / `testmain_test.go` | Bounded image fixtures and isolated locale; resource tests need no desktop event loop |
+| `image_test.go` / `testmain_test.go` | Bounded image fixtures, imported padding/corner pixels across every ICNS/PE size, and isolated locale; resource tests need no desktop event loop |
 | `macos/` | Temporary signed bundles, system names, IconServices, and runtime Dock icons |
 | `windows/` | Running EXEs, Shell links, registry, taskbar properties, and rollback |
 

@@ -62,6 +62,18 @@ go vet -modfile="$patch_mod" -overlay="$test_overlay" ./...
 
 ## Validation records
 
+### Imported icon sizing and corners
+
+2026-10-18: Icon import now centers visible artwork in an approximately 80% area of the 512-pixel canvas, replaces existing transparent margins, and rounds fully opaque rectangles with antialiased edges. Existing alpha silhouettes stay intact; saved icons decode unchanged and older icons adopt the sizing when reselected. Evidence and the /ponytail-review record are in .scratch/icon-padding/.
+
+- The new PNG/JPEG sizing tests failed against the old importer with visible bounds (0,0)-(512,512). The completed importer passed padding, corners, antialiasing, translucent cutouts, empty transparency, asymmetric input margins, odd/narrow aspect ratios, exact repeat-import pixels, and storage checks.
+- make test with the race detector and make check passed on macOS ARM64. Import/resource tests also passed as darwin/amd64 binaries under Rosetta, exercising the vector rasterizer's Intel path. Its existing x/image dependency requires the newly recorded x/sys v0.48.0 indirect dependency for SIMD detection on amd64.
+- Decoded all eight ICNS representations and nine PE icon sizes after real import; margins, transparent corners, artwork color, and relative size passed. Existing dual-architecture PE transaction/default-restoration tests also passed.
+- Targeted desktop tests passed for imported images and default restoration. The real NSApplication image read back as 1024x1024 with a 102-pixel top margin and transparent corners. This validates the native image, not visible Dock or notification presentation.
+- Make built macOS, Windows, and Linux ARM64/amd64 targets. Both macOS bundles passed strict codesign verification. Windows EXEs built; NSIS was unavailable, so installers were skipped. Windows/Linux native execution and real notification presentation were not performed. Linux icon selection remains unavailable.
+- comparison.png shows the actual importer applied to the repository logo, before and after; the temporary preview probe was removed. No installed app, user config, or system privacy setting was modified.
+- /ponytail-review traced selection, preview, persistence, ICNS/PE encoding, Dock updates, restored defaults, resource limits, and dependency selection. No blocking findings remained.
+
 ### GitHub release automation
 
 2026-10-18: Added native CI and gated tag releases, using Mayoi's release flow while retaining PageDock's Makefile patches, centralized tests, and ad-hoc/unsigned packaging. Evidence and the /ponytail-review record are in .scratch/github-release/.

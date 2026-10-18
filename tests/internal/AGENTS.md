@@ -8,7 +8,7 @@ This level holds cross-module tests for the pagedock package. `tests/packages.js
 | `browser_test.go` / `playground_test.go` | Login redirects, permission changes, and the real local test site; retain the desktop tag |
 | `notification_test.go` / `pwa_test.go` | Content sanitization, notification IDs, and the real WebView PWA bridge |
 | `language_test.go` / `reset_test.go` | Save failures, locale changes, and window state after cleanup |
-| `image_test.go` | Image import, storage, and native preview |
+| `image_test.go` | Image import, visible sizing, rounded corners, alpha/aspect preservation, repeat-import stability, storage, and native preview |
 | `macos/notification_test.go` | Explicitly enabled macOS system banner validation |
 | `windows/window_test.go` / `windows/media_test.go` | Shortcuts/focus, explicit device inputs, and media permissions |
 | `other/appearance_test.go` | Retain/restore icon config outside macOS/Windows |
