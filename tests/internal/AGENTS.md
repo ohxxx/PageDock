@@ -8,11 +8,13 @@ This level holds cross-module tests for the pagedock package. `tests/packages.js
 | `browser_test.go` / `playground_test.go` | Login redirects, permission changes, and the real local test site; retain the desktop tag |
 | `notification_test.go` / `pwa_test.go` | Content sanitization, notification IDs, and the real WebView PWA bridge |
 | `notifications_test.go` | Native record limits/expiry, replacement/failure/cancellation, and weak-reference proof of page callback release |
-| `soak_test.go` / `soak_metrics_test.go` | Opt-in macOS endurance workload, real notification registry/bridge, closed-object references, GC checkpoints, and profiles; run through tests/soak/run.py |
+| `lifecycle_test.go` / `macos/lifecycle_test.go` | Real closed-window/embedded-page collection on every desktop; macOS process-pool reuse and independent page controllers |
+| `macos/window_resources_test.go` | Actual show/hide/close cycles and native thread recovery; detects AppKit animation workers that starve later navigation |
+| `soak_test.go` / `soak_metrics_test.go` / `soak_native_test.go` | Opt-in macOS/Windows endurance workload, real notification registry/bridge, closed-object references, GC checkpoints, and profiles; external origins separate server ownership, and bare MyGo views independently restore evaluation, taskbar, background sampling, and native rendering to isolate integration; see tests/soak/ |
 | `language_test.go` / `reset_test.go` | Save failures, locale changes, and window state after cleanup |
 | `image_test.go` | Image import, visible sizing, rounded corners, alpha/aspect preservation, repeat-import stability, storage, and native preview |
 | `macos/notification_test.go` | Explicitly enabled macOS system banner validation |
-| `windows/window_test.go` / `windows/media_test.go` | Shortcuts/focus, explicit device inputs, and media permissions |
+| `windows/window_test.go` / `windows/window_resources_test.go` / `windows/media_test.go` | Shortcuts/focus, opt-in native handle diagnosis under pagedock_soak, explicit device inputs, and media permissions |
 | `other/appearance_test.go` | Retain/restore icon config outside macOS/Windows |
 | `config/` | Persistence, names, permissions, reset order, and safe profile cleanup |
 | `appearance/` | Shared file/resources and macOS/Windows appearance transactions |

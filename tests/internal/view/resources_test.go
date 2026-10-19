@@ -1,7 +1,7 @@
 //go:build desktop
 
 // [INPUT]: A static loopback page and actual native window visibility/navigation events.
-// [OUTPUT]: Reused color-sampling resources, bounded idle work, and suspension while hidden.
+// [OUTPUT]: Reused sampling resources, suspension while hidden, and recovery without focus events.
 // [POS]: Real WebView resource regression; no external websites or device inputs.
 // [PROTOCOL]: Update tests/internal/view/AGENTS.md and resource validation records.
 package view
@@ -139,23 +139,26 @@ func TestDesktopBrowserFollowerAppVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calls atomic.Int32
-	followWithReference(win, web.Page(), &calls)
+	reference := followWithReference(win, web.Page(), &calls)
 	win.Show()
 	eventually(t, func() bool { return calls.Load() > 1 })
 	other := mygo.NewWindow(mygo.WindowOptions{Width: 300, Height: 200, Content: ui.View(func(c *ui.Context) { ui.Text(c, "Other window") })})
 	defer other.Destroy()
 	focus(other)
 	defer mygo.App.Show()
-	mygo.App.Hide()
-	eventually(t, mygo.App.IsHidden)
-	time.Sleep(100 * time.Millisecond)
-	before := calls.Load()
-	time.Sleep(200 * time.Millisecond)
-	if calls.Load() != before {
-		t.Fatal("follower kept sampling a hidden application")
+	for range 5 {
+		mygo.App.Hide()
+		eventually(t, mygo.App.IsHidden)
+		time.Sleep(100 * time.Millisecond)
+		before := calls.Load()
+		time.Sleep(200 * time.Millisecond)
+		if calls.Load() != before {
+			t.Fatal("follower kept sampling a hidden application")
+		}
+		mygo.App.Show()
+		// App unhide must wake the unfocused website without another focus call.
+		eventually(t, func() bool { return calls.Load() > before })
 	}
-	mygo.App.Show()
-	focus(other)
-	// The website is visible again but does not receive a window-focus event.
-	eventually(t, func() bool { return calls.Load() > before })
+	win.Destroy()
+	eventually(t, func() bool { runtime.GC(); return reference.Value() == nil })
 }

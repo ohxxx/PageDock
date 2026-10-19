@@ -9,7 +9,7 @@ BUILD_ARGS ?= -skip-dmg
 ifneq ($(filter dev test test-desktop test-notifications test-media-windows build build-windows check,$(or $(MAKECMDGOALS),dev)),)
 MYGO_MODFILE := $(shell go run ./tools/mygo-patch)
 ifeq ($(strip $(MYGO_MODFILE)),)
-$(error Failed to prepare MyGo Windows patches)
+$(error Failed to prepare MyGo patches)
 endif
 export GOFLAGS := $(GOFLAGS) '-modfile=$(MYGO_MODFILE)'
 endif

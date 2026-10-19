@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """[INPUT]: Explicit duration/recovery flags and the repository's pinned MyGo/test overlay.
-[OUTPUT]: An isolated macOS test bundle, runtime/RSS evidence, and an exact success/failure result.
+[OUTPUT]: An isolated macOS test bundle/run or Windows test EXE, with explicit transport boundaries.
 [POS]: Opt-in endurance runner; only the notification presentation transport is replaced.
 [PROTOCOL]: Update tests/soak/AGENTS.md, tests/AGENTS.md, and the owning test headers.
 """
@@ -37,28 +37,33 @@ def replace_body(source, signature, body):
     return source[:start] + "\n" + body + source[end:]
 
 
-def prepare(output, race, development):
+def prepare(output, race, development, platform="darwin", arch=None):
     modfile = run(["go", "run", "./tools/mygo-patch"], capture_output=True, text=True).stdout.strip()
     base_overlay = run(["go", "run", "./tools/test-overlay"], capture_output=True, text=True).stdout.strip()
     module = json.loads(run(["go", "list", f"-modfile={modfile}", "-m", "-json", MYGO_MODULE], capture_output=True, text=True).stdout)
     if module["Version"] != "v0.5.1":
         raise RuntimeError("Review the observation overlay before using a different MyGo version")
     dependency = Path(module["Dir"])
-    target = dependency / "internal/darwin/notify.go"
+    target = dependency / ("internal/darwin/notify.go" if platform == "darwin" else "internal/windows/tray.go")
     original = target.read_text()
     source = original
-    for signature, body in [
+    replacements = [
         ("func (b *Backend) NotificationsSupported() bool {", "\treturn true"),
-        ("func (b *Backend) attachNotificationDelegate() {", ""),
         ("func (b *Backend) ShowNotification(n *platform.Notification, done func(error)) {", "\tdone(nil)"),
-        ("func (b *Backend) RemoveNotification(ident string) {", ""),
+        ("func (b *Backend) RemoveNotification(" + ("ident" if platform == "darwin" else "id") + " string) {", ""),
         ("func (b *Backend) RemoveAllNotifications() {", ""),
-    ]:
+    ]
+    if platform == "darwin":
+        replacements.append(("func (b *Backend) attachNotificationDelegate() {", ""))
+    else:
+        # Windows already reports support in a one-line method.
+        replacements = replacements[1:]
+    for signature, body in replacements:
         source = replace_body(source, signature, body)
     transport = output / "notify_transport.go"
     transport.write_text(source)
     probe = output / "mygo_probe.go"
-    probe.write_text('''//go:build darwin && pagedock_soak
+    probe.write_text('''//go:build pagedock_soak
 
 package mygo
 
@@ -80,12 +85,14 @@ func PageDockSoakClick(id string) {
     overlay_path.write_text(json.dumps(overlay, indent=2))
     bundle = output / "PageDockSoak.app"
     executable_dir = bundle / "Contents/MacOS"
-    executable_dir.mkdir(parents=True)
+    if platform == "darwin":
+        executable_dir.mkdir(parents=True)
     identifier = "local.pagedock.soak." + uuid.uuid4().hex
-    with (bundle / "Contents/Info.plist").open("wb") as file:
-        plistlib.dump({"CFBundleIdentifier": identifier, "CFBundleName": "PageDockSoak", "CFBundleExecutable": "PageDockSoak",
-                      "CFBundlePackageType": "APPL", "CFBundleVersion": "1", "NSHighResolutionCapable": True}, file)
-    executable = executable_dir / "PageDockSoak"
+    if platform == "darwin":
+        with (bundle / "Contents/Info.plist").open("wb") as file:
+            plistlib.dump({"CFBundleIdentifier": identifier, "CFBundleName": "PageDockSoak", "CFBundleExecutable": "PageDockSoak",
+                          "CFBundlePackageType": "APPL", "CFBundleVersion": "1", "NSHighResolutionCapable": True}, file)
+    executable = executable_dir / "PageDockSoak" if platform == "darwin" else output / "PageDockSoak.exe"
     tags = "desktop,pagedock_soak" if development else "desktop,pagedock_soak,mygo_noinspector"
     command = ["go", "test", f"-modfile={modfile}", f"-overlay={overlay_path}", "-tags", tags, "-c", "-o", str(executable)]
     if not development:
@@ -94,10 +101,15 @@ func PageDockSoakClick(id string) {
         command.append("-race")
     command.append("./internal")
     with (output / "build.log").open("w") as log:
-        run(command, stdout=log, stderr=subprocess.STDOUT)
-        run(["codesign", "--force", "--sign", "-", str(bundle)], stdout=log, stderr=subprocess.STDOUT)
-        run(["codesign", "--verify", "--deep", "--strict", str(bundle)], stdout=log, stderr=subprocess.STDOUT)
-    return bundle, {"bundle_id": identifier, "race": race, "development": development, "module": module["Version"], "transport_original_sha256": hashlib.sha256(original.encode()).hexdigest(),
+        environment = os.environ.copy()
+        if platform == "windows":
+            environment.update(GOOS="windows", GOARCH=arch, CGO_ENABLED="0")
+        run(command, stdout=log, stderr=subprocess.STDOUT, env=environment)
+        if platform == "darwin":
+            run(["codesign", "--force", "--sign", "-", str(bundle)], stdout=log, stderr=subprocess.STDOUT)
+            run(["codesign", "--verify", "--deep", "--strict", str(bundle)], stdout=log, stderr=subprocess.STDOUT)
+    return bundle if platform == "darwin" else executable, {"platform":platform,"arch":arch,"bundle_id": identifier if platform == "darwin" else None,
+                    "race": race, "development": development, "module": module["Version"], "transport_original_sha256": hashlib.sha256(original.encode()).hexdigest(),
                     "transport_overlay_sha256": hashlib.sha256(source.encode()).hexdigest(), "boundary": "real WebViews and MyGo notifications.byID; OS banner transport replaced"}
 
 
@@ -157,7 +169,11 @@ def monitor(bundle, output, args):
     stdout, stderr = output / "test.log", output / "stderr.log"
     stdout.touch()
     stderr.touch()
-    command = ["open", "-n", "-g", "-W", "--stdout", str(stdout), "--stderr", str(stderr), str(bundle), "--args",
+    command = ["open", "-n", "-g", "-W", "--stdout", str(stdout), "--stderr", str(stderr)]
+    if args.malloc_stack_logging:
+        # WebKit's bmalloc needs system allocation to expose individual owner stacks.
+        command += ["--env", "MallocStackLogging=1", "--env", "Malloc=1"]
+    command += [str(bundle), "--args",
                "-test.run=^TestDesktopResourceSoak$", "-test.v", f"-test.timeout={args.duration+args.recovery+180}s",
                f"-soak-duration={args.duration}s", f"-soak-recovery={args.recovery}s", f"-soak-pace={args.pace}s", f"-soak-output={output}",
                f"-soak-batch={args.batch}", f"-soak-visits={args.visits}"]
@@ -239,6 +255,8 @@ def main():
     parser.add_argument("--visits", type=int, default=3, help="trusted page visits per window")
     parser.add_argument("--race", action="store_true", help="short correctness run; not a production RSS baseline")
     parser.add_argument("--development", action="store_true", help="retain MyGo developer tools for comparison with production defaults")
+    parser.add_argument("--malloc-stack-logging", action="store_true", help="record native allocation stacks using system malloc in this test process only")
+    parser.add_argument("--windows-build", choices=["arm64", "amd64"], help="build an isolated Windows test EXE; run it with windows.ps1 on Windows")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if sys.platform != "darwin" or min(args.duration,args.recovery,args.pace,args.visits) <= 0 or args.batch < 0 or 0 < args.batch < 4:
@@ -247,9 +265,15 @@ def main():
     if not output.is_relative_to(ROOT / ".scratch"):
         parser.error("evidence must stay under the repository's .scratch directory")
     output.mkdir(parents=True, exist_ok=False)
-    bundle, metadata = prepare(output,args.race,args.development)
-    metadata.update({"duration_s":args.duration,"recovery_s":args.recovery,"pace_s":args.pace,"batch":args.batch,"visits":args.visits})
+    if args.windows_build and (args.race or args.malloc_stack_logging):
+        parser.error("Windows cross-builds do not support --race or --malloc-stack-logging")
+    bundle, metadata = prepare(output,args.race,args.development,"windows" if args.windows_build else "darwin",args.windows_build)
+    metadata.update({"duration_s":args.duration,"recovery_s":args.recovery,"pace_s":args.pace,"batch":args.batch,"visits":args.visits,
+                     "malloc_stack_logging":args.malloc_stack_logging})
     (output / "manifest.json").write_text(json.dumps(metadata,indent=2))
+    if args.windows_build:
+        print(json.dumps({"executable":str(bundle),"result":"built; Windows execution required"}))
+        return
     try:
         result = monitor(bundle,output,args)
         (output / "result.json").write_text(json.dumps(result,indent=2))

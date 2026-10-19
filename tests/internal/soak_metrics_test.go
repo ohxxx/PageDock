@@ -1,4 +1,4 @@
-//go:build desktop && pagedock_soak && darwin
+//go:build desktop && pagedock_soak && (darwin || windows)
 
 // [INPUT]: Endurance phases, runtime memory statistics, notification records, and weak window/view references.
 // [OUTPUT]: JSONL measurements, GC checkpoints, profiles, and explicit cleanup assertions.
@@ -126,12 +126,18 @@ func (s *soakMetrics) sample(t *testing.T, phase string, refs *soakReferences, g
 func (s *soakMetrics) checkpoint(t *testing.T, phase string, refs *soakReferences, profile bool) {
 	t.Helper()
 	soakWait(t, func() bool { return soakActiveCallbacks() == 0 }, "callback teardown at checkpoint")
-	runtime.GC()
+	// Native completion handlers and queued frames may finish after Destroy.
+	// Require eventual collection instead of allowing a permanently retained last window.
+	soakWait(t, func() bool {
+		mygo.RunOnMain(func() {})
+		runtime.GC()
+		return refs.reclaimed()
+	}, "closed window/page/view collection")
 	row := s.sample(t, phase, refs, true)
 	if row.NativeRecords != row.QueueRecords || row.NativeRecords > maxNativeNotifications || row.Windows != 0 || row.Followers != 0 {
 		t.Fatalf("resources after closed windows: %+v", row)
 	}
-	if row.RetainedWindows > 1 || row.RetainedPages > 1 || row.RetainedViews > 1 {
+	if row.RetainedWindows != 0 || row.RetainedPages != 0 || row.RetainedViews != 0 {
 		t.Fatalf("closed objects accumulated after GC: windows=%d pages=%d views=%d", row.RetainedWindows, row.RetainedPages, row.RetainedViews)
 	}
 	if profile && (s.checkpoints%10 == 0 || phase != "loaded") {
@@ -154,6 +160,25 @@ func (s *soakMetrics) checkpoint(t *testing.T, phase string, refs *soakReference
 	t.Logf("phase=%s elapsed=%.0fs cycles=%d notifications=%d heap=%.2fMiB goroutines=%d native=%d retained=%d/%d/%d",
 		phase, row.Elapsed, row.Cycles, row.Notifications, float64(row.HeapAlloc)/(1<<20), row.Goroutines, row.NativeRecords,
 		row.RetainedWindows, row.RetainedPages, row.RetainedViews)
+}
+
+func (refs *soakReferences) reclaimed() bool {
+	for _, ref := range refs.windows {
+		if ref.Value() != nil {
+			return false
+		}
+	}
+	for _, ref := range refs.pages {
+		if ref.Value() != nil {
+			return false
+		}
+	}
+	for _, ref := range refs.views {
+		if ref.Value() != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func fmtProfile(phase string, index int, name string) string {

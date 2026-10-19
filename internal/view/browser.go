@@ -1,4 +1,4 @@
-// [INPUT]: The current MyGo locale, embedded WebView loading state, top background color, and caption button area.
+// [INPUT]: MyGo locale, window/application visibility, embedded WebView loading, top background color, and caption area.
 // [OUTPUT]: A matching title bar and thin loading indicator, with adaptive visible-only sampling and document-scoped canvas reuse.
 // [POS]: Website container; background sampling is read-only, and view fields belong to the UI main thread.
 // [PROTOCOL]: Update this header and internal/view/AGENTS.md; update the root AGENTS.md when directory boundaries change.
@@ -131,9 +131,8 @@ func followBrowser(win *mygo.Window, page *mygo.Page, sample func(context.Contex
 	off := []func(){
 		win.OnClosed(cancel), win.OnShow(signal), win.OnHide(signal),
 		win.OnMinimize(signal), win.OnRestore(signal), win.OnFocus(signal),
-		// App.Hide/Show does not emit window visibility events for unfocused macOS windows.
-		mygo.App.OnDidBecomeActive(signal), mygo.App.OnDidResignActive(signal),
-		mygo.App.OnActivate(func(bool) { signal() }),
+		// App visibility can change without activation or a window-focus event.
+		mygo.App.OnDidHide(signal), mygo.App.OnDidUnhide(signal),
 		page.OnWillNavigate(func(*mygo.NavigateEvent) { signal() }),
 		page.OnDidNavigate(func(string) { signal() }), page.OnDOMReady(signal),
 		page.OnDidFinishLoad(signal), page.OnDidFailLoad(func(*mygo.LoadError) { signal() }),

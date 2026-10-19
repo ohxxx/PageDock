@@ -8,6 +8,7 @@
 import unittest
 
 import analyze
+import analyze_windows
 
 
 class MeasurementTests(unittest.TestCase):
@@ -25,6 +26,19 @@ class MeasurementTests(unittest.TestCase):
         self.assertEqual(summary["samples"], 3)
         self.assertEqual(summary["median"], 12)
         self.assertEqual(summary["slope_per_minute"], 2)
+
+    def test_windows_private_memory_stays_separate_from_working_set(self):
+        app = {"private_bytes": 10, "working_set": 100, "handles": 4, "threads": 2,
+               "gdi_objects": 1, "user_objects": 3}
+        rows = [{"elapsed_s": 0, "app": app, "webview_count": 2,
+                 "webviews": [{"private_bytes": 2, "working_set": 50},
+                              {"private_bytes": 3, "working_set": 60}]},
+                {"elapsed_s": 5, "app": None, "webview_count": 0, "webviews": []}]
+        values = analyze_windows.flatten(rows)
+        self.assertEqual(len(values), 1)
+        self.assertEqual(values[0]["app_private"], 10)
+        self.assertEqual(values[0]["webview_private"], 5)
+        self.assertEqual(values[0]["webview_working_set"], 110)
 
 
 if __name__ == "__main__":

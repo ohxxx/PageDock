@@ -39,7 +39,7 @@ A single-user, single-process desktop shell with no backend or database. Set a U
 | `tools/test-overlay/` | Map centralized tests to product packages, preserving platform-group ownership through tests/packages.json without copying product code |
 | `playground/` | Standalone local dual-origin notification/media test site, excluded from app packaging |
 | `resources/darwin/` | English/Chinese system camera and microphone usage descriptions |
-| `patches/mygo/` / `tools/mygo-patch/` | Pinned MyGo patches and isolated dependency preparation without module-cache changes |
+| `patches/mygo/` / `tools/mygo-patch/` | Shared lifecycle, macos/ process resources and visibility events, windows/ integration patches, and immutable dependency copies keyed by patch contents without module-cache changes |
 | Directory `AGENTS.md` files / `tests/AGENTS.md` | Module maps, interface constraints, and platform validation scope |
 | `go.mod` / `go.sum` / `mygo.json` | Pinned dependencies and package metadata; the app entry remains root `.` |
 | `Makefile` / `README.md` | Development, test, check, and build commands; concise product and usage information |
