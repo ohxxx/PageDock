@@ -12,8 +12,8 @@ Shared resource processing and file transactions stay here; native implementatio
 | `window_other.go` | Shared macOS/Linux native window creation without taskbar migration |
 | `other.go` | Retain saved images on Linux and other unsupported platforms while allowing ordinary saves, default restoration, and restart |
 | `macos/` | Bundles, signing, system names, Dock/notification icon caches, and relaunch |
-| `windows/` | EXE updates, Shell links, system names, registry, taskbar, and relaunch |
+| `windows/` | EXE updates, successful-sync cache, Shell links, system names, registry, taskbar, and relaunch |
 
 Resource algorithms remain in the shared package because they can be tested across hosts. Export only operations needed by real platform callers; keep COM, cache, and bundle transaction details private. Depend on `config` values/validation and `locale` messages, never application state or UI packages.
 
-Go does not select platforms by directory name. Short filenames in platform directories require `//go:build darwin` or `//go:build windows`. Tests mirror this layout under `tests/internal/appearance/` with matching constraints; macOS desktop cases also require `desktop`. Update headers, local/root maps, and validation records together.
+Go does not select platforms by directory name. Native API files in platform directories require `//go:build darwin` or `//go:build windows`; the Windows save cache is portable. Tests mirror this layout under `tests/internal/appearance/` with matching constraints; macOS desktop cases also require `desktop`. Update headers, local/root maps, and validation records together.

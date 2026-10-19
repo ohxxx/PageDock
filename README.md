@@ -41,6 +41,8 @@ Supports macOS, Windows, and Linux. Windows requires WebView2; Linux requires We
 
 Custom app icons are unavailable on Linux. Website location controls are unavailable on macOS. Website notifications require PageDock to remain running and follow system notification settings.
 
+During each run, PageDock keeps up to 256 notifications for up to 24 hours, removing the oldest when the limit is reached.
+
 ## Playground
 
 Run `make playground` to test notifications, click callbacks, microphone, and camera locally. Audio and video are never uploaded.

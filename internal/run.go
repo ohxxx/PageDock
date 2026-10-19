@@ -1,5 +1,5 @@
 // [INPUT]: The current MyGo locale, package metadata, and optional PAGEDOCK_DATA_DIR.
-// [OUTPUT]: A single-instance app, browser/settings reset before WebView creation, default appearance restoration, and notification click activation.
+// [OUTPUT]: A single-instance app, browser/settings and notification-record reset, default appearance restoration, and notification click activation.
 // [POS]: internal startup orchestration called by root main.go; MyGo runs on the main thread and settings actions serialize in the background.
 // [PROTOCOL]: Update this header and internal/AGENTS.md; update the root AGENTS.md when directory boundaries change.
 package pagedock
@@ -74,6 +74,7 @@ func Run() {
 				return
 			}
 			if reset {
+				appNotifications.clear()
 				mygo.ClearNotifications()
 				if appearanceChanged {
 					relaunch(dir)

@@ -1,10 +1,11 @@
 // [INPUT]: Native settings actions, drafts passed by value, and background operation results.
-// [OUTPUT]: Serialized action dispatch, image selection, test notifications, and main-thread updates through Window.Update.
+// [OUTPUT]: Serialized action dispatch, image selection, bounded test notifications, and main-thread updates through Window.Update.
 // [POS]: Settings and save/cleanup orchestration; config/ and appearance/ own storage and platform details.
 // [PROTOCOL]: Update this header, internal/AGENTS.md, tests/AGENTS.md, and related behavior tests.
 package pagedock
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -95,10 +96,10 @@ func sendTestNotification(name string) error {
 	if !mygo.NotificationsSupported() {
 		return errors.New(l10n.Text("notificationsUnavailable"))
 	}
-	err := mygo.NewNotification(mygo.NotificationOptions{
+	err := appNotifications.show(context.Background(), mygo.NotificationOptions{
 		ID: testNotificationID + ":" + rand.Text(), Title: fmt.Sprintf(l10n.Text("notificationTitle"), name),
 		Body: l10n.Text("notificationBody"),
-	}).Show()
+	}, nil)
 	if errors.Is(err, mygo.ErrNotificationsDenied) {
 		return errors.New(l10n.Text("notificationsDenied"))
 	}
@@ -206,6 +207,7 @@ func (a *application) clearConfirmedDataLocked(all bool) (bool, error) {
 		return false, err
 	}
 	if all {
+		appNotifications.clear()
 		mygo.ClearNotifications()
 		a.config = prefs.Config{}
 	}

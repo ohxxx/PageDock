@@ -1,5 +1,5 @@
 // [INPUT]: The current MyGo locale, embedded WebView loading state, top background color, and caption button area.
-// [OUTPUT]: A matching title bar without shadows, a Windows logo/name menu, and a thin loading indicator; controls follow the background.
+// [OUTPUT]: A matching title bar and thin loading indicator, with adaptive visible-only sampling and document-scoped canvas reuse.
 // [POS]: Website container; background sampling is read-only, and view fields belong to the UI main thread.
 // [PROTOCOL]: Update this header and internal/view/AGENTS.md; update the root AGENTS.md when directory boundaries change.
 package view
@@ -16,9 +16,12 @@ import (
 )
 
 const (
-	browserColorInterval   = 500 * time.Millisecond
-	browserLoadingInterval = 100 * time.Millisecond
-	browserLoadingHeight   = 2
+	browserColorInterval       = 500 * time.Millisecond
+	browserColorMaxInterval    = 2 * time.Second
+	browserLoadingInterval     = 100 * time.Millisecond
+	browserLoadingIdleInterval = time.Second
+	browserReadTimeout         = 2 * time.Second
+	browserLoadingHeight       = 2
 )
 
 type Browser struct {
@@ -70,70 +73,100 @@ func (v *Browser) loadingIndicator(c *ui.Context, background ui.Color) {
 }
 
 func (v *Browser) FollowLoading(win *mygo.Window, page *mygo.Page) {
-	stop := make(chan struct{})
-	win.OnClosed(func() { close(stop) })
-	go func() {
-		ticker := time.NewTicker(browserLoadingInterval)
-		defer ticker.Stop()
-		var previous bool
-		for {
-			select {
-			case <-stop:
-				return
-			case <-ticker.C:
-			}
-			// Native state also covers pending responses, reloads, stops, and load failures.
-			loading := page.IsLoading()
-			if loading != previous {
-				previous = loading
-				win.Update(func() { v.loading = loading })
-			}
+	var previous bool
+	followBrowser(win, page, func(_ context.Context, wake bool) time.Duration {
+		// Keep an idle fallback: MyGo's navigation events do not cover native LoadURL/Reload starts.
+		loading := page.IsLoading()
+		if loading != previous {
+			previous = loading
+			win.Update(func() { v.loading = loading })
 		}
-	}()
+		if loading || wake {
+			return browserLoadingInterval
+		}
+		return browserLoadingIdleInterval
+	})
 }
 
 func (v *Browser) FollowBackground(win *mygo.Window, page *mygo.Page) {
+	var previous string
+	interval := browserColorInterval
+	followBrowser(win, page, func(ctx context.Context, wake bool) time.Duration {
+		if wake {
+			interval = browserColorInterval
+		}
+		readCtx, stop := context.WithTimeout(ctx, browserReadTimeout)
+		value, err := page.EvalContext(readCtx, browserBackgroundScript)
+		stop()
+		color, ok := value.(string)
+		if err == nil && ok && len(color) == 6 && color != previous {
+			rgb, err := hex.DecodeString(color)
+			if err == nil {
+				// The runtime draws Windows caption buttons; keep the native background synchronized.
+				if err := win.SetBackgroundColor("#" + color); err != nil {
+					log.Printf(l10n.Text("backgroundFailed"), err)
+				} else {
+					previous = color
+					win.Update(func() { v.background = ui.RGB(rgb[0], rgb[1], rgb[2]) })
+					interval = browserColorInterval
+					return interval
+				}
+			}
+		}
+		interval = min(interval*2, browserColorMaxInterval)
+		return interval
+	})
+}
+
+// Both followers sleep without a timer while hidden/minimized and release their event subscriptions on close.
+func followBrowser(win *mygo.Window, page *mygo.Page, sample func(context.Context, bool) time.Duration) {
 	ctx, cancel := context.WithCancel(context.Background())
-	win.OnClosed(cancel)
-	ready := make(chan struct{}, 1)
-	page.OnDOMReady(func() {
+	wake := make(chan struct{}, 1)
+	signal := func() {
 		select {
-		case ready <- struct{}{}:
+		case wake <- struct{}{}:
 		default:
 		}
-	})
+	}
+	off := []func(){
+		win.OnClosed(cancel), win.OnShow(signal), win.OnHide(signal),
+		win.OnMinimize(signal), win.OnRestore(signal), win.OnFocus(signal),
+		// App.Hide/Show does not emit window visibility events for unfocused macOS windows.
+		mygo.App.OnDidBecomeActive(signal), mygo.App.OnDidResignActive(signal),
+		mygo.App.OnActivate(func(bool) { signal() }),
+		page.OnWillNavigate(func(*mygo.NavigateEvent) { signal() }),
+		page.OnDidNavigate(func(string) { signal() }), page.OnDOMReady(signal),
+		page.OnDidFinishLoad(signal), page.OnDidFailLoad(func(*mygo.LoadError) { signal() }),
+	}
+	if win.IsDestroyed() {
+		cancel()
+	}
 	go func() {
-		ticker := time.NewTicker(browserColorInterval)
-		defer ticker.Stop()
-		var previous string
+		timer := time.NewTimer(0)
+		defer timer.Stop()
+		defer cancel()
+		defer func() {
+			for _, unsubscribe := range off {
+				unsubscribe()
+			}
+		}()
 		for {
+			var event bool
 			select {
 			case <-ctx.Done():
 				return
-			case <-ready:
-			case <-ticker.C:
+			case <-wake:
+				event = true
+			case <-timer.C:
+			}
+			timer.Stop()
+			if ctx.Err() != nil {
+				return
 			}
 			if !win.IsVisible() || win.IsMinimized() {
 				continue
 			}
-			readCtx, stop := context.WithTimeout(ctx, 2*time.Second)
-			value, err := page.EvalContext(readCtx, browserBackgroundScript)
-			stop()
-			color, ok := value.(string)
-			if err != nil || !ok || len(color) != 6 || color == previous {
-				continue
-			}
-			rgb, err := hex.DecodeString(color)
-			if err != nil {
-				continue
-			}
-			// The runtime draws Windows caption buttons, so the native window background must stay synchronized.
-			if err := win.SetBackgroundColor("#" + color); err != nil {
-				log.Printf(l10n.Text("backgroundFailed"), err)
-				continue
-			}
-			previous = color
-			win.Update(func() { v.background = ui.RGB(rgb[0], rgb[1], rgb[2]) })
+			timer.Reset(sample(ctx, event))
 		}
 	}()
 }
@@ -142,9 +175,16 @@ func (v *Browser) FollowBackground(win *mygo.Window, page *mygo.Page) {
 // shortcut: Use the base color for gradients and images; add pixel sampling only if continuous patterns are required.
 const browserBackgroundScript = `(() => {
   if (!document.body) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 1;
-  const context = canvas.getContext('2d');
+  const key = Symbol.for('pagedock.background-sampler');
+  let context = globalThis[key];
+  if (!context) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    context = canvas.getContext('2d', {willReadFrequently: true});
+    if (!context) return null;
+    globalThis[key] = context;
+  }
+  context.clearRect(0, 0, 1, 1);
   context.fillStyle = 'Canvas';
   context.fillRect(0, 0, 1, 1);
   const layers = new Set([document.documentElement, document.body,

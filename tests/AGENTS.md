@@ -15,6 +15,7 @@ All Go behavior tests, Node tests, and platform validation scripts live here. Pr
 | `playground/go.mjs` | Repository discovery and shared MyGo patch/test argument preparation for both platform scripts |
 | `playground/macos/notifications.mjs` | Real macOS notification banners from a packaged app |
 | `playground/windows/media.mjs` | Windows file-device inputs, real authorization changes, and local WebRTC |
+| `soak/run.py` | Explicit macOS endurance run with a signed temporary app, native/WebKit RSS and footprint, and notification transport isolation |
 | `go.mod` | Isolate package discovery only; tests use root dependencies without separate installation or tidy |
 
 ## Go test interface
@@ -30,6 +31,7 @@ make test-playground
 make test-notifications
 make test-media-windows # Run on a Windows desktop
 make check
+python3 tests/soak/run.py --duration 1800 --recovery 300 --output .scratch/resource-soak/run-name # macOS desktop, new output directory
 ```
 
 For direct Go or IDE use, prepare both files at the repository root and pass them to every test, test compilation, and vet command:
@@ -52,6 +54,7 @@ go vet -modfile="$patch_mod" -overlay="$test_overlay" ./...
 - Do not write static contracts matching source, directories, or declarations. Tool tests execute real discovery/failure behavior; product tests assert results, state, and error paths.
 - Both platform scripts can start from any working directory and prepare identical MyGo patches/overlay. Windows scripts still accept precompiled EXEs.
 - Preserve notification test-bundle registration/restoration and Windows media temporary-profile cleanup. Ordinary desktop tests do not automatically invoke physical devices or real-banner suites.
+- Endurance tests require desktop,pagedock_soak,darwin and the runner's isolated dependency overlay. They retain real notification registry/bridge/window behavior but replace macOS banner delivery. Use --race only for short correctness checks; collect normal-build RSS/footprint separately. See soak/AGENTS.md for measurement and process cleanup boundaries.
 - Separate cross-compilation from actual platform behavior. See Validation records below; raw logs stay in .scratch/. Update root/owning AGENTS.md files and source headers together.
 
 ## GitHub Actions
@@ -61,6 +64,35 @@ go vet -modfile="$patch_mod" -overlay="$test_overlay" ./...
 `.github/workflows/release.yml` packages macOS DMGs, Windows NSIS installers, and Linux Debian/tar packages for amd64 and arm64. `make build BUILD_ARGS='-platform <targets> -o build'` enables DMGs while retaining dependency patches. Manual runs retain packages as Actions artifacts; only matching version-tag pushes publish. Validate version mismatch rejection, missing-package failure, and draft-only retry behavior by executing the workflow shell steps with isolated fixtures. Remote publishing must be verified separately from local syntax/build checks.
 
 ## Validation records
+
+### Extended notification/navigation/window validation
+
+2026-10-19: Added an explicit macOS endurance runner and actual process-memory collection. Evidence is in .scratch/resource-soak-20261019/. A unique ad-hoc test app uses temporary config, two loopback origins, real WKWebViews and the actual MyGo notification registry/bridge. Only system notification delivery is replaced, so this does not measure Notification Center or banners.
+
+- A 60-second load plus 30-second recovery run passed with the race detector: 20 windows, 80 navigations, 8,160 notification sends, and 120 verified clicks. Notification records returned to zero, goroutines returned to seven, and all attributable WebKit processes exited with the test app.
+- With the default development build options, the full three-trusted-page workload did not pass: four runs stopped at the first navigation of window 33, after 32 completed windows and 128 navigations. Reproduction held both at three-second pacing and at half-second pacing, and with notifications entirely disabled. Native navigation policy had allowed the load, but the actual document remained about:blank without commit/DOM/finish events. This is an unresolved loading failure in that build configuration; it must not be presented as a successful full-workload endurance result or attributed to notification retention.
+- Controls with one trusted page followed by one foreign-origin page passed: 88 windows/176 navigations with notifications disabled, and 150 windows/300 navigations/20,400 notification sends with notifications enabled. These controls distinguish the navigation combination from notification volume and raw window count.
+- The one-trusted-page development-build endurance run completed 30 minutes of load and five minutes of recovery: 599 windows, 1,198 navigations, 81,464 notification sends, and 1,198 verified clicks. The warmed-up Go heap remained near 8 MiB and ended at 7.29 MiB after clearing notifications and idling. Goroutines returned to seven; notification registries, callbacks, followers, and registered windows returned to zero. One closed Window/Page/Browser reference remained throughout without accumulation. All attributable WebKit processes exited with the test app.
+- Native heap snapshots from that completed run found 432, then 501, then 599 WKBackForwardListItem objects as window cycles increased. At idle start and after more than four minutes of recovery, both WKBackForwardListItem and _NSWorkspacePowerNotifier remained at 599 objects. Stable overall RSS and Go-heap assertions therefore do not establish complete native-resource reclamation. The exact retaining path and behavior on other macOS releases remain unverified.
+- A second complete 30-minute load plus five-minute recovery run used MyGo's production linker setting and mygo_noinspector tag, with runtime development=false. The full three-trusted-page workload completed 598 windows, 2,392 navigations, 243,984 notification sends, and 3,588 verified clicks without the development-build loading failure. The warmed-up post-GC heap ranged from 8.00 to 8.12 MiB and ended at 7.32 MiB. Goroutines returned to seven; notifications, callbacks, followers, and registered windows returned to zero; one closed Window/Page/Browser remained. All attributable WebKit processes exited.
+- Production native snapshots grew from 303 history items/101 power observers at five minutes to 612/204 at ten minutes and 1,230/410 at twenty minutes. At idle start and 4 minutes 15 seconds into recovery, the counts remained 1,794/598 (334,880 bytes for these objects alone, excluding allocations they reference). The application's warmed-up RSS increased slowly, from 146.28 to 150.17 MiB; the fitted slope was 0.12 MiB/min. Physical-footprint median was 63.16 MiB under load and 62.60 MiB during recovery. Idle CPU median was 0%. These results establish small persistent native-object accumulation, not complete memory recovery; allocation stacks and a safe fix remain outstanding.
+- Native reference-tree probes attributed history objects to WebKit-owned memory and observers to system block captures, but do not identify the allocating code. A separate leaks scan reported one 32-byte xpc_date_t object; it did not diagnose the retained-object growth. The measurements used macOS 27.2 (26B5112a), ARM64, Go 1.27.1, and MyGo 0.5.1. No Windows/Linux execution, real banner delivery, or GPU allocation measurement was performed in this endurance task.
+- Disposable process fixtures passed exact-bundle cleanup, preservation of another same-named executable in a different path, repeated cleanup, and SIGTERM-to-SIGKILL escalation. make test and make check passed. Ordinary tests exclude the endurance tags.
+- The final production-options 60-second load plus 30-second recovery run passed with the race detector: 20 windows, 80 navigations, 8,160 sends, and 120 clicks, with no attributable WebKit process after exit. Offline analysis checks passed clock alignment and slope units. /ponytail-review found no blocking issue in the new test tooling, but retained the native-object accumulation and development navigation failure as unresolved runtime findings. The task changed no product implementation and made no commit; all 54 product/build baseline hashes and HEAD remained unchanged.
+
+### Notification lifetime and idle resource use
+
+2026-10-19: Bounded website/settings-test notifications, skipped unchanged Windows appearance processing after successful synchronization, and replaced fixed browser tickers with visible-only adaptive followers. Evidence, failing regressions, measurements, and the /ponytail-review record are in .scratch/resource-fixes-20261019/.
+
+- Notification regressions first retained 1,024 records and a cancelled page closure. The completed lifecycle keeps at most 256 native records, expires them after 24 hours (virtual time), and releases page closures after navigation (weak reference plus GC). Tests also cover repeat clicks, same-ID replacement, stale timers/cancellation, failed delivery, and full cleanup. Native output is an observable test boundary; these tests do not request system notification permission.
+- Windows save tests first entered EXE synchronization again for ordinary saves. They now verify one initial synchronization, independent config persistence, name/icon changes, retry after save/native/rollback failures, and 32 concurrent saves. The cache-only benchmark on macOS ARM64 measured 15.99 ns/op, 0 B/op, and 0 allocations/op; it excludes config disk writes and is not a Windows latency measurement.
+- A real local WKWebView previously created 18 canvases during the sampling test and read 8 pixels in its 4-second measurement window. It now reuses 1 canvas and reads 2 pixels over 4 seconds. Tests cover hidden/minimized suspension, restoration, callback reclamation after destruction, actual caption colors, dynamic themes, reload, stop, and network failure.
+- A new real-window regression exposed missing resumption after macOS app unhide when another window held focus. Adding app activation subscriptions fixed it; subscriptions are removed on close.
+- make test and the full make test-desktop suite passed with the race detector on macOS ARM64; strengthened cache and sampling assertions passed in focused follow-ups. make check passed. PWA/Playground integration covered actual local page-to-Go sends, individual clicks, same-tag replacement, permission denial/recovery, and origin isolation. Real-banner and physical-media tests remain explicit opt-ins and were not run.
+- Make built darwin/arm64, darwin/amd64, windows/amd64, windows/arm64, linux/amd64, and linux/arm64. Both macOS bundles passed strict codesign verification. The application, view, and Windows appearance desktop test packages compiled for Windows/Linux on both architectures and macOS amd64. Windows EXEs built; NSIS was unavailable, so installers were skipped.
+- /ponytail-review traced all notification entry points/reset paths, queue/main-thread locking, timer identity, original-page authorization, startup/save/rollback caching, follower subscriptions, and native navigation fallbacks. No blocking findings remained. No commits, pushes, or releases were made.
+
+The earlier fix-validation run did not include Windows/Linux native execution, real system notification banners, or long-duration native/RSS/GPU profiling. Its evidence establishes the bounded Go lifetimes and reduced local sampling work above, not a blanket claim that a remote website or system WebView cannot leak memory. See the extended validation record for later endurance measurements.
 
 ### Imported icon sizing and corners
 

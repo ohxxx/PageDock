@@ -1,7 +1,7 @@
 //go:build desktop
 
 // [INPUT]: The actual playground Node server, native windows, WKWebView, and a notification output observer.
-// [OUTPUT]: Settings-controlled permissions and real playground button tests for independent sends, individual clicks, replacement, closing, and origin isolation.
+// [OUTPUT]: Settings-controlled permissions and playground tests for independent sends, click reclamation, replacement, and origin isolation.
 // [POS]: Frontend-to-Go integration; packaged apps validate system banners separately, without treating substitutes as delivery evidence.
 // [PROTOCOL]: Update internal/AGENTS.md, playground/AGENTS.md, and tests/AGENTS.md, including Validation records.
 package pagedock
@@ -75,7 +75,7 @@ func TestDesktopPlaygroundNotificationLab(t *testing.T) {
 		return nil
 	}
 	closePWANotification = func(id string) { closed <- id }
-	defer func() { showPWANotification, closePWANotification = present, dismiss }()
+	defer func() { appNotifications.clear(); showPWANotification, closePWANotification = present, dismiss }()
 	config := prefs.Config{URL: url + "/", AllowHTTP: true, AllowNotifications: true}
 	if err := desktopApp.store.Save(config); err != nil {
 		t.Fatal(err)
@@ -166,6 +166,14 @@ func TestDesktopPlaygroundNotificationLab(t *testing.T) {
 			got, _ := mygo.EvalAs[string](desktopPage(), `document.getElementById('last-click').textContent`)
 			return strings.Contains(got, want)
 		})
+		select {
+		case id := <-closed:
+			if id != d.options.ID {
+				t.Fatal("click closed wrong notification")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("click did not release native notification")
+		}
 	}
 	pageValue(t, desktopPage(), `document.getElementById('room').value='conversation-01'; document.getElementById('tag').value='replacement'; return 'set';`)
 	click("replace")

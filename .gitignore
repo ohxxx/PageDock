@@ -5,3 +5,4 @@
 /pagedock
 *.test
 .DS_Store
+__pycache__/

@@ -1,7 +1,7 @@
 //go:build desktop
 
 // [INPUT]: Local websites, native permission settings, and real embedded WebViews.
-// [OUTPUT]: denied-to-granted-to-denied recovery, navigation/reload, persistence, address retention, and unchanged state on failure.
+// [OUTPUT]: Permission recovery, notification-record cleanup, navigation/reload, persistence, and unchanged state on failure.
 // [POS]: End-to-end settings permission tests using only temporary desktop config and local services.
 // [PROTOCOL]: Update this header, internal/AGENTS.md, and tests/AGENTS.md; update the root AGENTS.md when directory boundaries change.
 package pagedock
@@ -101,9 +101,10 @@ func TestDesktopSettingsPermissionRecovery(t *testing.T) {
 	}
 
 	received := make(chan mygo.NotificationOptions, 1)
-	present := showPWANotification
+	present, dismiss := showPWANotification, closePWANotification
 	showPWANotification = func(opts mygo.NotificationOptions, _ func()) error { received <- opts; return nil }
-	defer func() { showPWANotification = present }()
+	closePWANotification = func(string) {}
+	defer func() { appNotifications.clear(); showPWANotification, closePWANotification = present, dismiss }()
 	if got := pageValue(t, desktopPage(), `await new Promise((resolve,reject)=>{const n=new Notification("恢复通知",{body:"权限已允许"});n.onshow=resolve;n.onerror=reject;});return "shown";`); got != "shown" {
 		t.Fatal(got)
 	}

@@ -1,6 +1,6 @@
 # Windows appearance tests
 
-Every file retains a `windows` build tag. `apply_test.go` covers EXEs, links, and running-image replacement. `name_test.go` covers visible system names, registry matching, and recovery. `taskbar_test.go` checks real Win32 window properties and link migration; `rename_test.go` covers pinned-item renames, conflicts, and rollback.
+Native tests retain a `windows` build tag. `cache_test.go` runs on every host and checks first synchronization, ordinary saves, name/icon changes, failed transactions, concurrent saves, and cache allocation cost. `apply_test.go` covers EXEs, links, and running-image replacement. `name_test.go` covers visible system names, registry matching, and recovery. `taskbar_test.go` checks real Win32 window properties and link migration; `rename_test.go` covers pinned-item renames, conflicts, and rollback.
 
 `fixture_test.go` provides canonical temporary paths and EXE/multilingual fixtures for this independent package and requires Go; keep it synchronized with shared PE fixtures. Private transaction tests must resolve temporary paths as the public windowsIconExecutable entry does, because hosted Windows TEMP can use 8.3 names while Shell returns long names. `image_test.go` only creates images and `testmain_test.go` isolates locale. Each case creates/destroys Win32 windows on a locked thread without a MyGo event loop. Application desktop tests still cover actual app-window creation.
 

@@ -1,7 +1,7 @@
 //go:build windows
 
 // [INPUT]: Validated name and icon, the current Windows EXE, and the settings save callback.
-// [OUTPUT]: Transactional EXE, shortcut, installed-app name, and config updates; the system reads the new appearance after restart.
+// [OUTPUT]: Cached successful appearance synchronization and transactional EXE, shortcut, installed-app name, and config updates.
 // [POS]: Windows appearance lifecycle using MyGo's running-EXE rename/replacement approach.
 // [PROTOCOL]: Update internal/appearance/windows/AGENTS.md, platform tests, and README.
 package windows
@@ -30,6 +30,12 @@ var windowsIconExecutable = sync.OnceValues(func() (string, error) {
 })
 
 func Apply(config prefs.Config, save func() error) (bool, error) {
+	return synchronizedAppearance.apply(config, save, applyAppearance)
+}
+
+var synchronizedAppearance appearanceCache
+
+func applyAppearance(config prefs.Config, save func() error) (bool, error) {
 	path, err := windowsIconExecutable()
 	if err != nil {
 		return false, err

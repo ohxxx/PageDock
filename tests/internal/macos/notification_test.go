@@ -1,7 +1,7 @@
 //go:build desktop && darwin
 
 // [INPUT]: Explicit PAGEDOCK_TEST_NATIVE_NOTIFICATIONS=1, a packaged test process, and local notification authorization.
-// [OUTPUT]: System banner records for consecutive real WebView notifications; suppressed or missing banners fail validation.
+// [OUTPUT]: System banner records with shared lifecycle cleanup; suppressed or missing banners fail validation.
 // [POS]: Opt-in native notification validation; Show success or a substitute cannot prove banner presentation.
 // [PROTOCOL]: Update internal/AGENTS.md and tests/AGENTS.md, including Validation records.
 package pagedock
@@ -66,7 +66,7 @@ func TestDesktopNativeNotificationBanners(t *testing.T) {
 	original := showPWANotification
 	ids := make(chan string, count)
 	showPWANotification = func(options mygo.NotificationOptions, click func()) error {
-		t.Cleanup(func() { mygo.NewNotification(mygo.NotificationOptions{ID: options.ID}).Close() })
+		t.Cleanup(func() { appNotifications.close(options.ID) })
 		ids <- options.ID
 		return original(options, click)
 	}

@@ -1,5 +1,5 @@
 // [INPUT]: The current MyGo locale and notification title, body, tag, and request ID submitted by the exact saved origin.
-// [OUTPUT]: MyGo native notifications, close operations, and click events routed only to their original page.
+// [OUTPUT]: Bounded MyGo notifications, close operations, and click events released when their original page leaves.
 // [POS]: A narrow notification service with no file, command, or configuration access.
 // [PROTOCOL]: Update this header and internal/AGENTS.md; update the root AGENTS.md when directory boundaries change.
 package pagedock
@@ -78,7 +78,7 @@ func (p *PWA) Receive(ctx context.Context, event WebNotification) (string, error
 	}
 	id := pwaNotificationID(source, event.Tag)
 	key := event.Key
-	err = showPWANotification(mygo.NotificationOptions{
+	err = appNotifications.show(ctx, mygo.NotificationOptions{
 		ID: id, Group: pwaOriginPrefix(source), Title: title,
 		Body: cleanNotificationText(event.Body, maxNotificationBody), Silent: event.Silent,
 	}, func() {
@@ -104,7 +104,7 @@ func (p *PWA) Close(ctx context.Context, id string) error {
 	if !strings.HasPrefix(id, pwaOriginPrefix(source)) || len(id) > 200 {
 		return errors.New(l10n.Text("notificationCloseForeign"))
 	}
-	closePWANotification(id)
+	appNotifications.close(id)
 	return nil
 }
 
@@ -138,7 +138,7 @@ func cleanNotificationText(raw string, limit int) string {
 
 var showPWANotification = func(opts mygo.NotificationOptions, onClick func()) error {
 	n := mygo.NewNotification(opts)
-	n.OnClick(func() { n.Close(); onClick() })
+	n.OnClick(onClick)
 	return n.Show()
 }
 

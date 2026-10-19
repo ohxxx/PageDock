@@ -1,7 +1,7 @@
 //go:build desktop
 
 // [INPUT]: Local HTTP websites, real WKWebView/Service Worker, and observable native notification output.
-// [OUTPUT]: Permission, both notification entry points, click/close, native rejection, and origin isolation tests.
+// [OUTPUT]: Permission, both notification entry points, bounded click/close lifetimes, native rejection, and origin isolation tests.
 // [POS]: No remote accounts, business messages, or changes to real websites.
 // [PROTOCOL]: Update this header, internal/AGENTS.md, and tests/AGENTS.md; update the root AGENTS.md when directory boundaries change.
 package pagedock
@@ -34,7 +34,10 @@ func TestDesktopPWANotifications(t *testing.T) {
 		return nil
 	}
 	closePWANotification = func(id string) { closed <- id }
-	defer func() { showPWANotification, closePWANotification = present, closeNotification }()
+	defer func() {
+		appNotifications.clear()
+		showPWANotification, closePWANotification = present, closeNotification
+	}()
 	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/sw.js" {
 			w.Header().Set("Content-Type", "application/javascript")
